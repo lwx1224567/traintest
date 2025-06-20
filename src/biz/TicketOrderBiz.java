@@ -5,7 +5,7 @@ import entity.TicketOrder;
 import java.util.List;
 
 public interface TicketOrderBiz {
-    List<TicketOrder> searchOrders(String username, String trainNumber, String status);
+    List<TicketOrder> searchOrders(String username, String trainNumber, String status, String seatType);
 
 
     boolean addOrder(TicketOrder order);

@@ -12,4 +12,12 @@ public class UserBizImpl implements UserBiz {
     public User login(String username, String password) {
         return userDao.login(username, password);
     }
+    @Override
+    public boolean register(User user) {
+        // 先查重
+        if (userDao.findUserByUsername(user.getUsername()) != null) {
+            return false; // 用户已存在
+        }
+        return userDao.addUser(user);
+    }
 }

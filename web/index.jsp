@@ -9,11 +9,23 @@
 <body>
 <h2>登录</h2>
 
+<%-- 注册成功的提示信息 --%>
+<%
+  String msg = request.getParameter("msg");
+  if (msg != null && !msg.isEmpty()) {
+%>
+<div style="color: green; font-weight: bold; margin-bottom: 10px;"><%= msg %></div>
+<%
+  }
+%>
+
 <form id="loginForm">
   用户名：<input type="text" name="username" id="username" required><br>
   密码：<input type="password" name="upassword" id="upassword" required><br>
   <button type="submit">登录</button>
 </form>
+
+<p>还没有账号？<a href="register.jsp">去注册</a></p>
 
 <script>
   $(function () {
