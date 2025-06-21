@@ -19,13 +19,55 @@
         .popup-form {
             display: none;
             position: fixed;
-            top: 10%;
-            left: 30%;
-            width: 40%;
-            background: #f0f0f0;
-            padding: 20px;
-            border: 1px solid #999;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 500px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            padding: 30px;
+            z-index: 9999;
+            font-family: Arial, sans-serif;
         }
+
+        .popup-form h3 {
+            margin-top: 0;
+            text-align: center;
+            color: #333;
+        }
+
+        .popup-form input[type="text"],
+        .popup-form input[type="datetime-local"],
+        .popup-form input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0 16px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+
+        .popup-form button {
+            padding: 10px 16px;
+            margin: 8px 4px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .popup-form button[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .popup-form button[type="button"] {
+            background-color: #ccc;
+            color: black;
+        }
+
+
     </style>
 </head>
 <body>
@@ -88,13 +130,14 @@
         <button type="button" onclick="hideForm()">取消</button>
     </form>
 </div>
-
+<p><a href="orderList.jsp">查看我的订单</a></p>
 <script>
     function showForm(train = null) {
         $("#trainForm")[0].reset();
         if (train) {
             $("#formTitle").text("修改车次");
-            $("input[name='action']").val("update");
+            $("input[name='action']").val("update");// 设置为 update 模式
+            // 预填表单数据
             $("#trainId").val(train.trainId);
             $("#trainNumber").val(train.trainNumber);
             $("#departure").val(train.departure);
@@ -107,24 +150,7 @@
             $("#formTitle").text("添加车次");
             $("input[name='action']").val("add");
         }
-        $("#trainFormDiv").show();
-    }
-    function bookTicket(trainId) {
-        $.ajax({
-            url: "OrderServlet?action=add",
-            method: "POST",
-            data: { train_id: trainId },
-            success: function (res) {
-                if (res.success) {
-                    alert("订票成功！");
-                } else {
-                    alert("订票失败：" + (res.error || ""));
-                }
-            },
-            error: function () {
-                alert("订票请求失败！");
-            }
-        });
+        $("#trainFormDiv").show();// 显示弹出层
     }
 
     function hideForm() {
@@ -132,8 +158,9 @@
     }
 
     function editTrain(id) {
+        // 向后端请求当前 ID 的车次信息，返回 JSON 对象
         $.get("TrainServlet", { action: "get", id: id }, function (train) {
-            showForm(train);
+            showForm(train);// 显示编辑弹出框，并预填数据
         }, "json");
     }
 
@@ -156,34 +183,55 @@
     }
 
     $("#trainForm").submit(function (e) {
-        e.preventDefault();
+        e.preventDefault();// 阻止表单默认提交行为
+
+        const action = $("input[name='action']").val();// 获取动作 add/update
+
         const formData = {
-            trainId: $("#trainId").val(),
             trainNumber: $("#trainNumber").val(),
             departure: $("#departure").val(),
             destination: $("#destination").val(),
             depTime: $("#depTime").val(),
             arrTime: $("#arrTime").val(),
             seatType: $("#seatType").val(),
-            price: $("#price").val(),
+            price: $("#price").val()
         };
-        const action = $("input[name='action']").val();
+
+        if (action === "update") {
+            formData.trainId = $("#trainId").val();// update 需要 ID
+        }
 
         $.ajax({
             url: "TrainServlet?action=" + action,
             method: "POST",
             contentType: "application/json",
             data: JSON.stringify(formData),
-            success: function () {
-                alert(action === "add" ? "添加成功" : "更新成功");
-                hideForm();
-                location.reload();
+            success: function (res) {
+                if (res.success) {
+                    alert(action === "add" ? "添加成功" : "更新成功");
+                    hideForm();
+                    location.href = "train.jsp";  // 重新加载页面，确保数据更新
+                } else {
+                    alert("操作失败！");
+                }
             },
             error: function () {
                 alert("提交失败！");
             }
         });
     });
+
+    function bookTicket(trainId) {
+        $.post("OrderServlet?action=add", {train_id: trainId}, function (res) {
+            if (res.success) {
+                alert("订票成功！");
+            } else {
+                alert("订票失败：" + (res.error || "未知错误"));
+            }
+        }, "json").fail(function () {
+            alert("服务器异常，订票失败！");
+        });
+    }
 </script>
 
 </body>

@@ -7,139 +7,192 @@ import entity.Train;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.*;
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.io.*;
+import java.util.*;
 
 import com.google.gson.Gson;
-import java.util.HashMap;
-import java.util.Map;
+import com.google.gson.GsonBuilder;
 
-@WebServlet("/TrainServlet")
+@WebServlet("/TrainServlet") // 映射访问路径为 /TrainServlet
 public class TrainServlet extends HttpServlet {
-    private TrainBiz trainBiz = new TrainBizImpl();
-    private Gson gson = new Gson();
+    private TrainBiz trainBiz = new TrainBizImpl(); // 业务逻辑层对象
+    // 设置 GSON 用于 JSON 转换，设置时间格式匹配 HTML5 datetime-local 格式
+    private Gson gson = new GsonBuilder().setDateFormat("yyyy-MM-dd'T'HH:mm").create();
 
+    /**
+     * 处理 POST 请求：添加、更新、删除操作
+     */
     @Override
-    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        response.setContentType("application/json;charset=UTF-8");
+    protected void doPost(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        // 设置请求和响应编码
+        request.setCharacterEncoding("utf-8");
+        response.setContentType("application/json;charset=utf-8");
+
+        // 获取 action 参数，若为空则从请求体中解析
         String action = request.getParameter("action");
-        System.out.println("【TrainServlet doGet】action = " + action);
+        if (action == null) action = getActionFromBody(request);
+
+        System.out.println("[TrainServlet] POST 请求 action = " + action); // 调试日志
 
         try {
-            if ("list".equals(action)) {
-                System.out.println("获取所有车次列表");
-                response.getWriter().write(gson.toJson(trainBiz.getTodayTrains()));
-            } else if ("get".equals(action)) {
-                String idStr = request.getParameter("trainId");
-                System.out.println("获取单条车次，trainId = " + idStr);
-                int trainId = Integer.parseInt(idStr);
-                Train train = trainBiz.getTrainById(trainId);
-                response.getWriter().write(gson.toJson(train));
-            } else {
-                response.getWriter().write("{\"error\":\"不支持的操作\"}");
+            switch (action) {
+                case "add":
+                    handleAddOrUpdate(request, response, false); // 添加车次
+                    break;
+                case "update":
+                    handleAddOrUpdate(request, response, true); // 更新车次
+                    break;
+                case "delete":
+                    deleteTrain(request, response); // 删除车次
+                    break;
+                default:
+                    // 无效操作
+                    response.getWriter().write("{\"error\":\"Invalid action\"}");
             }
         } catch (Exception e) {
-            System.err.println("【TrainServlet doGet 异常】" + e.getMessage());
+            // 异常处理：返回错误信息
             e.printStackTrace();
-            response.getWriter().write("{\"error\":\"服务器内部错误\"}");
+            response.getWriter().write("{\"success\":false,\"error\":\"" + e.getMessage() + "\"}");
         }
     }
 
+    /**
+     * 处理 GET 请求：查询车次信息
+     */
     @Override
-    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
-        request.setCharacterEncoding("UTF-8");
-        response.setContentType("application/json;charset=UTF-8");
+    protected void doGet(HttpServletRequest request, HttpServletResponse response)
+            throws ServletException, IOException {
+        request.setCharacterEncoding("utf-8");
+        response.setContentType("application/json;charset=utf-8");
 
         String action = request.getParameter("action");
-        System.out.println("【TrainServlet doPost】action = " + action);
-        Map<String, Object> result = new HashMap<>();
+        System.out.println("[TrainServlet] GET 请求 action = " + action); // 调试日志
 
         try {
-            if ("add".equals(action)) {
-                Train train = parseTrainFromRequest(request);
-                System.out.println("添加车次：" + train);
-                boolean success = trainBiz.addTrain(train);
-                result.put("success", success);
-                result.put("msg", success ? "添加成功" : "添加失败");
-
-            } else if ("update".equals(action)) {
-                Train train = parseTrainFromRequest(request);
-                String trainIdStr = request.getParameter("trainId");
-                if (trainIdStr == null || trainIdStr.isEmpty()) {
-                    throw new IllegalArgumentException("trainId不能为空");
-                }
-                train.setTrainId(Integer.parseInt(trainIdStr));
-                System.out.println("更新车次：" + train);
-                boolean success = trainBiz.updateTrain(train);
-                result.put("success", success);
-                result.put("msg", success ? "更新成功" : "更新失败");
-
-            } else if ("delete".equals(action)) {
-                String trainIdStr = request.getParameter("trainId");
-                if (trainIdStr == null || trainIdStr.isEmpty()) {
-                    throw new IllegalArgumentException("trainId不能为空");
-                }
-                int trainId = Integer.parseInt(trainIdStr);
-                System.out.println("删除车次，trainId = " + trainId);
-                boolean success = trainBiz.deleteTrain(trainId);
-                result.put("success", success);
-                result.put("msg", success ? "删除成功" : "删除失败");
-
+            if (action == null || action.equals("list")) {
+                listTrains(request, response); // 查询车次列表
+            } else if (action.equals("get")) {
+                getTrainById(request, response); // 根据 ID 查询单个车次
             } else {
-                result.put("success", false);
-                result.put("msg", "不支持的操作类型");
-                System.out.println("不支持的action类型：" + action);
+                response.getWriter().write("{\"error\":\"Invalid action\"}");
             }
         } catch (Exception e) {
-            System.err.println("【TrainServlet doPost 异常】" + e.getMessage());
+            // 异常处理
             e.printStackTrace();
-            result.put("success", false);
-            result.put("msg", "异常错误：" + e.getMessage());
+            response.getWriter().write("{\"success\":false,\"error\":\"" + e.getMessage() + "\"}");
         }
-
-        response.getWriter().write(gson.toJson(result));
     }
 
-    private Train parseTrainFromRequest(HttpServletRequest request) throws Exception {
+    /**
+     * 从 JSON 请求体中解析出 action 字段（用于 Ajax 请求中未加 URL 参数的情况）
+     */
+    private String getActionFromBody(HttpServletRequest request) throws IOException {
+        BufferedReader reader = request.getReader();
+        StringBuilder json = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            json.append(line);
+        }
+
+        System.out.println("[TrainServlet] 请求体 JSON：" + json); // 打印接收到的 JSON
+
+        // 判断 JSON 中包含的操作类型
+        if (json.toString().contains("\"action\":\"update\"")) return "update";
+        if (json.toString().contains("\"action\":\"add\"")) return "add";
+        if (json.toString().contains("\"action\":\"delete\"")) return "delete";
+        return null;
+    }
+
+    /**
+     * 查询车次列表（可选按日期和车次编号过滤）
+     */
+    private void listTrains(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String date = request.getParameter("date");
         String trainNumber = request.getParameter("trainNumber");
-        String departure = request.getParameter("departure");
-        String destination = request.getParameter("destination");
-        String depTimeStr = request.getParameter("depTime");
-        String arrTimeStr = request.getParameter("arrTime");
-        String seatType = request.getParameter("seatType");
-        String priceStr = request.getParameter("price");
 
-        System.out.println("解析参数：trainNumber=" + trainNumber +
-                ", departure=" + departure + ", destination=" + destination +
-                ", depTime=" + depTimeStr + ", arrTime=" + arrTimeStr +
-                ", seatType=" + seatType + ", price=" + priceStr);
+        System.out.println("[TrainServlet] 查询车次列表，date=" + date + ", trainNumber=" + trainNumber);
 
-        if (trainNumber == null || trainNumber.isEmpty() ||
-                departure == null || departure.isEmpty() ||
-                destination == null || destination.isEmpty() ||
-                depTimeStr == null || depTimeStr.isEmpty() ||
-                arrTimeStr == null || arrTimeStr.isEmpty() ||
-                seatType == null || seatType.isEmpty() ||
-                priceStr == null || priceStr.isEmpty()) {
-            throw new IllegalArgumentException("参数不能为空");
+        // 调用业务层方法查询
+        List<Train> list = trainBiz.searchTrains(
+                date == null ? "" : date.trim(),
+                trainNumber == null ? "" : trainNumber.trim()
+        );
+
+        // 转换为 JSON 返回给前端
+        String json = gson.toJson(list);
+        response.getWriter().print(json);
+    }
+
+    /**
+     * 根据车次 ID 查询单个车次信息（用于表单预填）
+     */
+    private void getTrainById(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String idStr = request.getParameter("id");
+        if (idStr == null || idStr.isEmpty()) {
+            response.getWriter().write("{\"error\":\"缺少id参数\"}");
+            return;
         }
 
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
-        Date depTime = sdf.parse(depTimeStr.replace("T", " "));
-        Date arrTime = sdf.parse(arrTimeStr.replace("T", " "));
-        BigDecimal price = new BigDecimal(priceStr);
+        int id = Integer.parseInt(idStr);
+        System.out.println("[TrainServlet] 获取车次信息，id=" + id);
 
-        Train train = new Train();
-        train.setTrainNumber(trainNumber);
-        train.setDeparture(departure);
-        train.setDestination(destination);
-        train.setDepTime(depTime);
-        train.setArrTime(arrTime);
-        train.setSeatType(seatType);
-        train.setPrice(price);
+        Train train = trainBiz.getTrainById(id); // 查询业务层
 
-        return train;
+        String json = gson.toJson(train);
+        response.getWriter().write(json);
+    }
+
+    /**
+     * 处理添加或更新车次的通用方法
+     */
+    private void handleAddOrUpdate(HttpServletRequest request, HttpServletResponse response, boolean isUpdate) throws IOException {
+        BufferedReader reader = request.getReader();
+        StringBuilder json = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            json.append(line);
+        }
+
+        System.out.println("[TrainServlet] 添加/更新车次，收到 JSON：" + json.toString());
+
+        // 将 JSON 转为 Train 实体对象
+        Train train = gson.fromJson(json.toString(), Train.class);
+        System.out.println("[TrainServlet] Train 反序列化结果：" + train);
+
+        // 调用业务层方法执行添加或更新
+        boolean success = isUpdate ? trainBiz.updateTrain(train) : trainBiz.addTrain(train);
+
+        System.out.println("[TrainServlet] 操作是否成功：" + success);
+        // 返回结果给前端
+        response.getWriter().write("{\"success\":" + success + "}");
+    }
+
+    /**
+     * 删除车次信息（通过 JSON 请求体传 id）
+     */
+    private void deleteTrain(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        BufferedReader reader = request.getReader();
+        StringBuilder json = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            json.append(line);
+        }
+
+        System.out.println("[TrainServlet] 删除车次，收到 JSON：" + json.toString());
+
+        // 解析 JSON 中的 id 字段
+        Map<String, Object> map = gson.fromJson(json.toString(), Map.class);
+        double idDouble = (Double) map.get("id"); // JSON 默认是 Double 类型
+        int trainId = (int) idDouble;
+
+        System.out.println("[TrainServlet] 删除的 trainId = " + trainId);
+
+        // 调用业务层删除方法
+        boolean success = trainBiz.deleteTrain(trainId);
+        System.out.println("[TrainServlet] 删除结果：" + success);
+
+        // 返回是否成功
+        response.getWriter().write("{\"success\":" + success + "}");
     }
 }

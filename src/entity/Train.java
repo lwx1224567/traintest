@@ -4,7 +4,7 @@ import java.math.BigDecimal;
 import java.util.Date;
 
 public class Train {
-    private int trainId;
+    private Integer trainId;
     private String trainNumber;
     private String departure;
     private String destination;
@@ -13,7 +13,7 @@ public class Train {
     private String seatType;
     private BigDecimal price;
 
-    public int getTrainId() {
+    public Integer getTrainId() {
         return trainId;
     }
 

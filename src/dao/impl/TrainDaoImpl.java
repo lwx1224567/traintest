@@ -8,12 +8,18 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * TrainDao 接口的实现类，负责与数据库进行车次信息的增删改查操作。
+ */
 public class TrainDaoImpl implements TrainDao {
 
+    /**
+     * 查询所有车次信息（当前版本无日期筛选）
+     */
     @Override
     public List<Train> getTodayTrains() {
         List<Train> list = new ArrayList<>();
-        String sql = "SELECT * FROM train";
+        String sql = "SELECT * FROM train"; // 查询所有车次
 
         System.out.println("【DEBUG】执行 SQL: " + sql);
 
@@ -21,6 +27,7 @@ public class TrainDaoImpl implements TrainDao {
              PreparedStatement ps = conn.prepareStatement(sql);
              ResultSet rs = ps.executeQuery()) {
 
+            // 遍历结果集，将每条记录封装为 Train 对象
             while (rs.next()) {
                 Train t = new Train();
                 t.setTrainId(rs.getInt("train_id"));
@@ -44,6 +51,9 @@ public class TrainDaoImpl implements TrainDao {
         return list;
     }
 
+    /**
+     * 根据 ID 查询一条车次信息
+     */
     @Override
     public Train getTrainById(int trainId) {
         Train train = null;
@@ -80,9 +90,13 @@ public class TrainDaoImpl implements TrainDao {
         return train;
     }
 
+    /**
+     * 添加一条车次记录
+     */
     @Override
     public boolean addTrain(Train train) {
-        String sql = "INSERT INTO train(train_number, departure, destination, dep_time, arr_time, seat_type, price) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO train(train_number, departure, destination, dep_time, arr_time, seat_type, price) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)";
         System.out.println("【DEBUG】执行 SQL: " + sql);
         System.out.println("【DEBUG】添加车次数据：" + train);
 
@@ -100,6 +114,7 @@ public class TrainDaoImpl implements TrainDao {
             boolean success = ps.executeUpdate() > 0;
             System.out.println("【DEBUG】添加结果：" + success);
             return success;
+
         } catch (Exception e) {
             System.out.println("【ERROR】addTrain 出错！");
             e.printStackTrace();
@@ -108,6 +123,9 @@ public class TrainDaoImpl implements TrainDao {
         return false;
     }
 
+    /**
+     * 更新已有的车次信息
+     */
     @Override
     public boolean updateTrain(Train train) {
         String sql = "UPDATE train SET train_number=?, departure=?, destination=?, dep_time=?, arr_time=?, seat_type=?, price=? WHERE train_id=?";
@@ -138,6 +156,9 @@ public class TrainDaoImpl implements TrainDao {
         return false;
     }
 
+    /**
+     * 删除车次记录（根据 trainId）
+     */
     @Override
     public boolean deleteTrain(int trainId) {
         String sql = "DELETE FROM train WHERE train_id=?";
@@ -158,11 +179,16 @@ public class TrainDaoImpl implements TrainDao {
 
         return false;
     }
+
+    /**
+     * 根据日期和车次号（模糊）查询车次列表
+     */
     @Override
     public List<Train> searchTrains(String date, String trainNumber) {
         List<Train> list = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT * FROM train WHERE 1=1");
+        StringBuilder sql = new StringBuilder("SELECT * FROM train WHERE 1=1"); // 动态 SQL 拼接
 
+        // 根据是否传入日期和车次号添加条件
         if (date != null && !date.isEmpty()) {
             sql.append(" AND DATE(dep_time) = ?");
         }
@@ -173,6 +199,7 @@ public class TrainDaoImpl implements TrainDao {
         try (Connection conn = DBUtil.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql.toString())) {
 
+            // 设置参数
             int index = 1;
             if (date != null && !date.isEmpty()) {
                 ps.setString(index++, date);
@@ -195,6 +222,7 @@ public class TrainDaoImpl implements TrainDao {
                 list.add(t);
             }
         } catch (Exception e) {
+            System.out.println("【ERROR】searchTrains 出错！");
             e.printStackTrace();
         }
 
